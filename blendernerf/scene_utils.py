@@ -1,10 +1,12 @@
 import bpy
 import math
+import numpy as np
 
-def make_camera(xyz: tuple = (5, 0, 5), rots: tuple = (45, 0, 90), FOV: int =39.6):
+def make_camera(xyz: tuple = (5, 0, 5), rots: tuple = (45, 0, 90), FOV: int =120):
 
     new_cam_data = bpy.data.cameras.new(name="new_cam")
     new_cam_data.angle = math.radians(FOV)  #50 mm focal length
+    new_cam_data.sensor_height = new_camera.sensor_width
     new_cam = bpy.data.objects.new(name="new_cam", object_data = new_cam_data)
 
     cons = new_cam.constraints.new(type='TRACK_TO')
@@ -16,6 +18,25 @@ def make_camera(xyz: tuple = (5, 0, 5), rots: tuple = (45, 0, 90), FOV: int =39.
 
 
     return new_cam
+
+import bpy
+
+def get_solid_material():
+    solid_material = bpy.data.materials.new(name="SolidMaterial")
+    solid_material.use_nodes = True
+    solid_material.node_tree.nodes.clear()
+
+    # Create a Diffuse BSDF node
+    diffuse_node = solid_material.node_tree.nodes.new('ShaderNodeBsdfDiffuse')
+
+    # Create a Material Output node
+    output_node = solid_material.node_tree.nodes.new('ShaderNodeOutputMaterial')
+
+    # Link the Diffuse BSDF node to the Material Output node
+    solid_material.node_tree.links.new(diffuse_node.outputs['BSDF'], output_node.inputs['Surface'])
+
+    return solid_material
+
 
 def get_glass_material():
     glass_material = bpy.data.materials.new(name="GlassMaterial")
@@ -65,15 +86,16 @@ def use_gpu(device_type):
         print("Use:", d["use"])
         print()
 
-def add_background_blank():
+def add_background():
     world = bpy.context.scene.world
 
     world.use_nodes = True
     bg_node = world.node_tree.nodes.get('Background')
     if bg_node:
-        bg_node.inputs['Color'].default_value = (1.0, 1.0, 1.0, 1.0)
+        bg_node.inputs['Color'].default_value = (.2, .2, .2, 1.0)
 
-def add_background():
+
+def add_background_noise():
     bpy.context.scene.use_nodes = True
     tree = bpy.context.scene.node_tree
 
@@ -102,5 +124,27 @@ def add_background():
     tree.links.new(noise_node.outputs[0], mix_node.inputs[2])
     tree.links.new(mix_node.outputs[0], composite_node.inputs['Image'])
 
+def get_rot_matrix(angle, axis):
+    cos, sin = math.cos, math.sin
+    if axis == 'Z':
+        rot_matrix = np.array([
+            [cos(angle), -sin(angle), 0],
+            [sin(angle), cos(angle), 0],
+            [0, 0, 1]
+            ])
+    elif axis == 'Y':
+        rot_matrix = np.array([
+            [cos(angle), 0, sin(angle)],
+            [0, 1, 0],
+            [-sin(angle), 0, -cos(angle)]
+            ])
+    elif axis == 'X':
+        rot_matrix = np.array([
+            [1, 0, 0],
+            [0, cos(angle), -sin(angle)],
+            [0, sin(angle), cos(angle)]
+            ])
+    else:
+        raise AssertionError("axis must be 'X', 'Y', or 'Z'")
 
-
+    return rot_matrix

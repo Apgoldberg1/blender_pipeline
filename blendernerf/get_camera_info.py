@@ -3,6 +3,8 @@ based on blendernerf
 """
 import os
 import json
+from scene_utils import get_rot_matrix
+import numpy as np
 
 def get_camera_intrinsics(scene, camera):
         camera_angle_x = camera.data.angle_x
@@ -75,10 +77,44 @@ def get_camera_extrinsics(scene, camera, name, mode='TRAIN'):
 
     frame_data = {
         'file_path': os.path.join("", filename),
-        'transform_matrix': listify_matrix(camera.matrix_global)
+        'transform_matrix': listify_matrix(camera.matrix_world)
     }
 
     return frame_data
+
+def get_camera_extrinsics_log(name, angles):
+    filename = os.path.basename(name)
+
+    def rotation_matrix_y(angle):
+        return np.array([
+            [np.cos(angle), 0, np.sin(angle), 0],
+            [0, 1, 0, 0],
+            [-np.sin(angle), 0, np.cos(angle), 0],
+            [0, 0, 0, 1]
+        ])
+
+    def rotation_matrix_z(angle):
+        return np.array([
+            [np.cos(angle), -np.sin(angle), 0, 0],
+            [np.sin(angle), np.cos(angle), 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
+        ])
+
+    rotation_matrix_y_axis = rotation_matrix_y(angles[0])
+    rotation_matrix_z_axis = rotation_matrix_z(angles[1])
+    
+    #transform_matrix = get_rot_matrix(angles[0], axis="Z") @ get_rot_matrix(angles[1], axis="Y")
+    #transform_matrix = listify_matrix(rotation_matrix_z_axis @ rotation_matrix_y_axis)
+    transform_matrix = listify_matrix(rotation_matrix_y_axis @ rotation_matrix_z_axis)
+
+    frame_data = {
+        'file_path': os.path.join("", filename),
+        'transform_matrix': transform_matrix
+    }
+
+    return frame_data
+
 
 def add_to_json_file(filename, data, wipe=False):
     if os.path.exists(filename) and not wipe:
