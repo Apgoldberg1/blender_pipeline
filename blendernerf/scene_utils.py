@@ -6,7 +6,7 @@ def make_camera(xyz: tuple = (5, 0, 5), rots: tuple = (45, 0, 90), FOV: int =120
 
     new_cam_data = bpy.data.cameras.new(name="new_cam")
     new_cam_data.angle = math.radians(FOV)  #50 mm focal length
-    new_cam_data.sensor_height = new_camera.sensor_width
+
     new_cam = bpy.data.objects.new(name="new_cam", object_data = new_cam_data)
 
     cons = new_cam.constraints.new(type='TRACK_TO')

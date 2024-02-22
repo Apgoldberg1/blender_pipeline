@@ -7,14 +7,26 @@ from scene_utils import *
 from get_camera_info import get_camera_extrinsics, get_camera_intrinsics, save_json, get_camera_extrinsics_log
 
 def add_sphere_world():
+    prev_active = bpy.context.view_layer.objects.active
+    bpy.ops.object.select_all(action='DESELECT')
     bpy.ops.mesh.primitive_uv_sphere_add(radius=30, location=(0, 0, 0))
+
+    bpy.ops.object.editmode_toggle()
+    bpy.ops.mesh.select_all(action='SELECT')
+
+    bpy.ops.mesh.flip_normals() # just flip normals
+    # bpy.ops.mesh.normals_make_consistent(inside=True) # or recalculate inside
+    # bpy.ops.mesh.normals_make_consistent(inside=False) # or recalculate outside
+
+    bpy.ops.object.mode_set()
+
 
     # Assign a material to the sphere
     sphere_material = bpy.data.materials.new(name="SphereMaterial")
     sphere_material.use_nodes = True
     principled_bsdf = sphere_material.node_tree.nodes.get("Principled BSDF")
     if principled_bsdf:
-        principled_bsdf.inputs['Base Color'].default_value = (1, 1, 1, 1)  # Set base color to white
+        principled_bsdf.inputs['Base Color'].default_value = (.2, .2, .2, 1)  # Set base color to white
 
     # Add a noise texture to the material
     noise_texture_node = sphere_material.node_tree.nodes.new('ShaderNodeTexNoise')
@@ -31,8 +43,11 @@ def add_sphere_world():
     if material_output:
         sphere_material.node_tree.links.new(noise_texture_node.outputs['Color'], principled_bsdf.inputs['Base Color'])
 
+    #sphere_material.use_backface_culling = True
     # Apply the material to the sphere
     bpy.context.object.data.materials.append(sphere_material)
+
+    bpy.context.view_layer.objects.active = prev_active
 
 def rotate_camera(camera_obj, origin, angle: float, axis: str = 'Z'):
     cos = math.cos
@@ -45,7 +60,13 @@ def rotate_camera(camera_obj, origin, angle: float, axis: str = 'Z'):
 
 def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
     bpy.context.scene.render.engine = 'CYCLES'
-    bpy.context.scene.cycles.samples = 128
+
+    bpy.context.scene.render.resolution_x = 512
+    bpy.context.scene.render.resolution_y = 512
+
+    bpy.context.scene.render.pixel_aspect_x = 1
+    bpy.context.scene.render.pixel_aspect_y = 1
+    bpy.context.scene.cycles.samples = 16
 
     use_gpu("CUDA")
 
@@ -54,6 +75,7 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
      
     stl_root = pathlib.Path(path_name)
      
+    bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete()  #Delete defualt cube
 
     bpy.ops.object.select_all(action='DESELECT')
@@ -72,6 +94,8 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
     collection.objects.link(light2)
     bpy.ops.object.select_all(action='DESELECT')
 
+    FOV = 90
+
      
     for stl_fname in stl_root.glob('**/*.stl'):
         bpy.ops.import_mesh.stl(filepath=str(stl_fname))
@@ -81,8 +105,10 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
         obj.display.show_shadows = False
 
         max_dim = max(obj.dimensions)
-        scale_factor =  .25 * (2*math.sqrt(30)*math.atan(.69)) / (max_dim)
-        obj.scale *= scale_factor
+        obj.scale *= 8 / max_dim
+        #scale_factor =  (2*(math.sqrt(30))*math.atan(math.radians(FOV)) / (max_dim))
+        #obj.scale *= scale_factor
+
 
         #z_dim = obj.dimensions[2]
         #z_min = get_min_z(obj)
@@ -93,15 +119,16 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
 
 
         camera_origin = np.array([math.sqrt(30), 0, 0])
-        camera = make_camera(xyz = camera_origin, rots = (90, 0, 90))
+        camera = make_camera(xyz = camera_origin, rots = (90, 0, 90), FOV=FOV)
         bpy.context.scene.camera = camera
 
         bpy.ops.object.select_all(action='DESELECT')
         #bpy.ops.mesh.primitive_plane_add(size=100, enter_editmode=False, align='WORLD', location=(0, 0, -10))
         add_sphere_world()
 
-        rotz_incr, roty_incr = (.3 * math.pi) / rot_res, (.3 * math.pi / 2) / rot_res
-        roty, rotz = -rot_res / 2 * roty_incr, 0
+        rotz_incr, roty_incr = (2 * math.pi) / rot_res, (math.pi / 2) / rot_res
+        #roty, rotz = -rot_res / 2 * roty_incr, 0
+        roty, rotz = 0, 0
 
         scene = bpy.context.scene
 
@@ -138,5 +165,5 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
 if __name__ == "__main__":
     mesh_dir = "../mesh_dir"
     image_path_name = "outputs"
-    render_dir(mesh_dir, image_path_name, rot_res = 4)
+    render_dir(mesh_dir, image_path_name, rot_res = 15)
 
