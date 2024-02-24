@@ -9,43 +9,47 @@ from get_camera_info import get_camera_extrinsics, get_camera_intrinsics, save_j
 def add_sphere_world():
     prev_active = bpy.context.view_layer.objects.active
     bpy.ops.object.select_all(action='DESELECT')
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=30, location=(0, 0, 0))
-
-    bpy.ops.object.editmode_toggle()
-    bpy.ops.mesh.select_all(action='SELECT')
-
-    bpy.ops.mesh.flip_normals() # just flip normals
-    # bpy.ops.mesh.normals_make_consistent(inside=True) # or recalculate inside
-    # bpy.ops.mesh.normals_make_consistent(inside=False) # or recalculate outside
-
-    bpy.ops.object.mode_set()
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=50, location=(0, 0, 0))
 
 
-    # Assign a material to the sphere
-    sphere_material = bpy.data.materials.new(name="SphereMaterial")
-    sphere_material.use_nodes = True
-    principled_bsdf = sphere_material.node_tree.nodes.get("Principled BSDF")
-    if principled_bsdf:
-        principled_bsdf.inputs['Base Color'].default_value = (.2, .2, .2, 1)  # Set base color to white
+    # Create a new material
+    mat = bpy.data.materials.new(name="sphere_material")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
 
-    # Add a noise texture to the material
-    noise_texture_node = sphere_material.node_tree.nodes.new('ShaderNodeTexNoise')
-    noise_texture_node.inputs['Scale'].default_value = 1.0  # Adjust scale for big clouds
-    noise_texture_node.inputs['Detail'].default_value = 4  # Increase detail for better quality
-    noise_texture_node.inputs['Distortion'].default_value = 0.5  # Add distortion for more natural look
+    # Remove the Principled BSDF node
+    principled_node = nodes.get("Principled BSDF")
+    if principled_node:
+        nodes.remove(principled_node)
 
-    # Connect texture coordinates
-    tex_coord_node = sphere_material.node_tree.nodes.new('ShaderNodeTexCoord')
-    sphere_material.node_tree.links.new(tex_coord_node.outputs['Generated'], noise_texture_node.inputs['Vector'])
+    # Add a Noise Texture node
+    noise_node = nodes.new(type='ShaderNodeTexNoise')
+    #noise_node = nodes.new(type='ShaderNodeTexBrick')
+    #noise_node = nodes.new(type='ShaderNodeTexChecker')
+    #noise_node.inputs['Color1'].default_value = (0, .8, 0, .8)
+    #noise_node.inputs['Color2'].default_value = (.8, 0, 0, .8)
 
-    # Link the noise texture node to the material output
-    material_output = sphere_material.node_tree.nodes.get("Material Output")
-    if material_output:
-        sphere_material.node_tree.links.new(noise_texture_node.outputs['Color'], principled_bsdf.inputs['Base Color'])
+    #noise_node.inputs['Scale'].default_value = 2.4
+    #noise_node.inputs['Color1'].default_value = (0, .8, 0, .8)
+    #noise_node.inputs['Color2'].default_value = (.8, 0, 0, .8)
+    #noise_node.inputs['Mortar Size'].default_value = 0
+
+    # Adjust parameters of the Noise Texture node
+    noise_node.inputs['Scale'].default_value = 4
+    noise_node.inputs['Distortion'].default_value = 6
+    noise_node.inputs['Detail'].default_value = 0
+    noise_node.normalize = True
+
+    # Create a material output node and link it
+    output_node = nodes.get("Material Output")
+    if output_node:
+        links = mat.node_tree.links
+        links.new(noise_node.outputs['Color'], output_node.inputs['Surface'])
+
 
     #sphere_material.use_backface_culling = True
     # Apply the material to the sphere
-    bpy.context.object.data.materials.append(sphere_material)
+    bpy.context.object.data.materials.append(mat)
 
     bpy.context.view_layer.objects.active = prev_active
 
@@ -81,7 +85,7 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
     bpy.ops.object.select_all(action='DESELECT')
     render = bpy.context.scene.render
 
-    #add_background()
+    #add_background_noise()
     #glass_material = get_glass_material()
     glass_material = get_solid_material()
 
@@ -105,7 +109,7 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
         obj.display.show_shadows = False
 
         max_dim = max(obj.dimensions)
-        obj.scale *= 8 / max_dim
+        obj.scale *= 7 / max_dim
         #scale_factor =  (2*(math.sqrt(30))*math.atan(math.radians(FOV)) / (max_dim))
         #obj.scale *= scale_factor
 
@@ -126,9 +130,9 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
         #bpy.ops.mesh.primitive_plane_add(size=100, enter_editmode=False, align='WORLD', location=(0, 0, -10))
         add_sphere_world()
 
-        rotz_incr, roty_incr = (2 * math.pi) / rot_res, (math.pi / 2) / rot_res
-        #roty, rotz = -rot_res / 2 * roty_incr, 0
-        roty, rotz = 0, 0
+        rotz_incr, roty_incr = (2 * math.pi) / rot_res, (2 * math.pi / 2) / rot_res
+        roty, rotz = -rot_res / 2 * roty_incr, 0
+        #roty, rotz = 0, 0
 
         scene = bpy.context.scene
 
@@ -165,5 +169,5 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
 if __name__ == "__main__":
     mesh_dir = "../mesh_dir"
     image_path_name = "outputs"
-    render_dir(mesh_dir, image_path_name, rot_res = 15)
+    render_dir(mesh_dir, image_path_name, rot_res = 20)
 

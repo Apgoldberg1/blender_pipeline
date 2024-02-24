@@ -43,8 +43,10 @@ def get_glass_material():
     glass_material.use_nodes = True
     glass_material.node_tree.nodes.clear()
     glass_node = glass_material.node_tree.nodes.new('ShaderNodeBsdfGlass')
+    glass_node.inputs['Roughness'].default_value = .05
     output_node = glass_material.node_tree.nodes.new('ShaderNodeOutputMaterial')
     glass_material.node_tree.links.new(glass_node.outputs['BSDF'], output_node.inputs['Surface'])
+
 
     return glass_material
 
