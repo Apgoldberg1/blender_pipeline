@@ -4,7 +4,7 @@ import math
 import numpy as np
 import multiprocessing
 from scene_utils import *
-from get_camera_info import get_camera_extrinsics, get_camera_intrinsics, save_json, get_camera_extrinsics_log
+from get_camera_info import get_camera_extrinsics, get_camera_intrinsics, save_json 
 
 def add_sphere_world():
     prev_active = bpy.context.view_layer.objects.active
@@ -153,8 +153,6 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
                 rotz += rotz_incr
 
                 extrinsics_dicts.append(get_camera_extrinsics(scene, camera, f"{render.filepath}.png", mode='TRAIN'))
-                #extrinsics_dicts.append(get_camera_extrinsics_log(f"{render.filepath}.png", (roty, rotz)))
-                #log_extrinsics(scene, camera, f"{render.filepath}.png", f"{output_dir}/{stl_fname.stem}/", mode='TRAIN')
 
             roty += roty_incr
 
@@ -169,5 +167,5 @@ def render_dir(mesh_dir: str, output_dir: str, rot_res: int = 4):
 if __name__ == "__main__":
     mesh_dir = "../mesh_dir"
     image_path_name = "outputs"
-    render_dir(mesh_dir, image_path_name, rot_res = 20)
+    render_dir(mesh_dir, image_path_name, rot_res = 4)
 

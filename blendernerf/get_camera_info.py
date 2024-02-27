@@ -82,40 +82,6 @@ def get_camera_extrinsics(scene, camera, name, mode='TRAIN'):
 
     return frame_data
 
-def get_camera_extrinsics_log(name, angles):
-    filename = os.path.basename(name)
-
-    def rotation_matrix_y(angle):
-        return np.array([
-            [np.cos(angle), 0, np.sin(angle), 0],
-            [0, 1, 0, 0],
-            [-np.sin(angle), 0, np.cos(angle), 0],
-            [0, 0, 0, 1]
-        ])
-
-    def rotation_matrix_z(angle):
-        return np.array([
-            [np.cos(angle), -np.sin(angle), 0, 0],
-            [np.sin(angle), np.cos(angle), 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
-
-    rotation_matrix_y_axis = rotation_matrix_y(angles[0])
-    rotation_matrix_z_axis = rotation_matrix_z(angles[1])
-    
-    #transform_matrix = get_rot_matrix(angles[0], axis="Z") @ get_rot_matrix(angles[1], axis="Y")
-    #transform_matrix = listify_matrix(rotation_matrix_z_axis @ rotation_matrix_y_axis)
-    transform_matrix = listify_matrix(rotation_matrix_y_axis @ rotation_matrix_z_axis)
-
-    frame_data = {
-        'file_path': os.path.join("", filename),
-        'transform_matrix': transform_matrix
-    }
-
-    return frame_data
-
-
 def add_to_json_file(filename, data, wipe=False):
     if os.path.exists(filename) and not wipe:
         with open(filename, 'r+') as file:
@@ -139,14 +105,6 @@ def save_json(data, filename):
         os.remove(filename)
     with open(filename, 'w') as file:
         json.dump(data, file, indent=4)
-
-def log_intrinsics(scene, camera, output_dir):
-    intr_dict = get_camera_intrinsics(scene, camera)
-    add_to_json_file(os.path.join(output_dir, "transforms.json"), intr_dict, wipe=True)
-
-def log_extrinsics(scene, camera, img_path, output_dir, mode='TRAIN'):
-    extr_dict = get_camera_extrinsics(scene, camera, img_path, mode=mode)
-    add_to_json_file(os.path.join(output_dir, "transforms.json"), extr_dict)
 
 def save_extrinsics(extr_dict, output_dir):
     add_to_json_file(os.path.join(output_dir, "transforms.json"), extr_dict)

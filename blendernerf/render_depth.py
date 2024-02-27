@@ -1,82 +1,77 @@
-import numpy as np
+import json
+from pathlib import Path
+from typing import Literal, Tuple, Dict
+import tqdm
+
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import torch
-import pickle
+import numpy as np
 
-def gaussian_splat(x, y, z, intensity, grid_size, sigma):
+from nerfstudio.utils.eval_utils import eval_setup
+from nerfstudio.cameras.cameras import Cameras
+
+
+def setup(config: str, camera_poses: str):
     """
-    Generate a Gaussian splat.
-    
-    Parameters:
-        x, y, z (float): Coordinates of the splat center.
-        intensity (float): Intensity of the splat.
-        grid_size (int): Size of the grid.
-        sigma (float): Standard deviation of the Gaussian function.
-    
-    Returns:
-        ndarray: 2D array representing the Gaussian splat.
+    config: path to model training run config
+    camera_poses: str path to transforms.json formatted camera poses
     """
-    xx, yy = np.meshgrid(np.arange(grid_size), np.arange(grid_size))
-    d = np.sqrt((xx - x)**2 + (yy - y)**2)
-    return intensity * np.exp(-d**2 / (2.0 * sigma**2))
+
+    _, pipeline, _, _ = eval_setup(
+        config_path=Path(config),
+        test_mode="test",
+    )
+
+    camera_poses_path = "test_poses.json"
+    with open(camera_poses_path, "r") as f:
+        camera_poses = json.load(f)
+
+    num_cameras = len(camera_poses["frames"])
+    cameras = []
+
+    for i in range(num_cameras):
+        camera_to_worlds = torch.tensor(camera_poses["frames"][i]["transform_matrix"][:3]).view(1, 3, 4)
+        fx, fy = torch.tensor(camera_poses["fl_x"]).view(1, 1), torch.tensor(camera_poses["fl_y"]).view(1, 1)
+        cx, cy = torch.tensor(camera_poses["cx"]).view(1, 1), torch.tensor(camera_poses["cy"]).view(1, 1)
+        w, h = torch.tensor(camera_poses["w"], dtype=torch.int).view(1, 1), torch.tensor(camera_poses["h"], dtype=torch.int).view(1, 1)
+        cameras.append(Cameras(camera_to_worlds, fx, fy, cx, cy, w, h).to(pipeline.device))
+
+    return pipeline, cameras
 
 
-def render_depth_image(camera_position, splats, grid_size):
-    """
-    Render depth image from camera view.
-    
-    Parameters:
-        camera_position (tuple): Camera position (x, y, z).
-        splats (list): List of splats, each defined as (x, y, z, intensity).
-        grid_size (int): Size of the grid.
-    
-    Returns:
-        ndarray: 2D array representing the depth image.
-    """
-    depth_image = np.zeros((grid_size, grid_size))
-    for splat in splats:
-        x, y, z, intensity = splat
-        depth = np.sqrt((camera_position[0] - x)**2 + (camera_position[1] - y)**2 + (camera_position[2] - z)**2)
-        depth_image += gaussian_splat(x, y, z, intensity, grid_size, sigma=1.0) / depth
-    return depth_image
+def get_outputs(
+    pipeline,
+    #camera: Cameras,
+    camera,
+    scale: float = 1.0,
+) -> Dict[str, torch.Tensor]:
+    """Render from camera, and return outputs -- includes rgb and garfield group features."""
 
+    with torch.no_grad():
+        #outputs = pipeline.model.get_outputs_for_camera_ray_bundle(ray_bundle)
+        outputs = pipeline.model.get_outputs(camera)
+    return outputs
 
-def load_checkpoint(checkpoint_path):
-    """
-    Load NerfStudio checkpoint and extract camera parameters and splats.
-    
-    Parameters:
-        checkpoint_path (str): Path to the NerfStudio checkpoint.
-    
-    Returns:
-        tuple: Tuple containing camera_position, splats, and grid_size.
-    """
-    with open(checkpoint_path, 'rb') as f:
-        checkpoint = pickle.load(f)
-    
-    camera_position = checkpoint['camera_position']
-    splats = checkpoint['splats']
-    grid_size = checkpoint['grid_size']
-    
-    return camera_position, splats, grid_size
+def render_depth_imgs(config: str, camera_poses: str, output_dir: str):
+    pipeline, cameras = setup(config, camera_poses)
 
+    output_ims = []
 
-def main(checkpoint_path):
+    with torch.no_grad():
+        for i in range(len(cameras)):
+            output_ims.append(pipeline.model.get_outputs(cameras[i])["rgb"].cpu())
 
-    # Load checkpoint
-    camera_position, splats, grid_size = load_checkpoint(checkpoint_path)
-
-    # Render depth image
-    depth_image = render_depth_image(camera_position, splats, grid_size)
-
-    # Display depth image
-    plt.imshow(depth_image, cmap='gray')
-    plt.title('Depth Image')
-    plt.colorbar()
-    plt.show()
+    return output_ims
 
 
 if __name__ == "__main__":
-    main("./outputs/glass_tilted/splatfacto/2024-02-23_032900/nerfstudio_models/step-000029999.ckpt")
+    #pipeline, cameras = setup("outputs/glass_400/splatfacto/2024-02-26_222509/config.yml")
+    config_path = "outputs/glass_400/splatfacto/2024-02-26_222509/config.yml"
+    camera_poses = "test_poses.json"
+    output_dir = "test_render_depth"
 
+    
+    depth_ims = render_depth_imgs(config_path, camera_poses, output_dir)
+
+    plt.imshow(depth_ims[0])
+    plt.show()
