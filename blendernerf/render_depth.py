@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Literal, Tuple, Dict
 import tqdm
+import os
 
 import matplotlib.pyplot as plt
 import torch
@@ -11,7 +12,7 @@ from nerfstudio.utils.eval_utils import eval_setup
 from nerfstudio.cameras.cameras import Cameras
 
 
-def setup(config: str, camera_poses: str):
+def _setup(config: str, camera_poses: str):
     """
     config: path to model training run config
     camera_poses: str path to transforms.json formatted camera poses
@@ -34,26 +35,15 @@ def setup(config: str, camera_poses: str):
         fx, fy = torch.tensor(camera_poses["fl_x"]).view(1, 1), torch.tensor(camera_poses["fl_y"]).view(1, 1)
         cx, cy = torch.tensor(camera_poses["cx"]).view(1, 1), torch.tensor(camera_poses["cy"]).view(1, 1)
         w, h = torch.tensor(camera_poses["w"], dtype=torch.int).view(1, 1), torch.tensor(camera_poses["h"], dtype=torch.int).view(1, 1)
-        cameras.append(Cameras(camera_to_worlds, fx, fy, cx, cy, w, h).to(pipeline.device))
 
-    return pipeline, cameras
+        camera = Cameras(camera_to_worlds, fx, fy, cx, cy, w, h).to(pipeline.device)
+        cameras.append(camera)
+
+        return pipeline, cameras
 
 
-def get_outputs(
-    pipeline,
-    #camera: Cameras,
-    camera,
-    scale: float = 1.0,
-) -> Dict[str, torch.Tensor]:
-    """Render from camera, and return outputs -- includes rgb and garfield group features."""
-
-    with torch.no_grad():
-        #outputs = pipeline.model.get_outputs_for_camera_ray_bundle(ray_bundle)
-        outputs = pipeline.model.get_outputs(camera)
-    return outputs
-
-def render_depth_imgs(config: str, camera_poses: str, output_dir: str):
-    pipeline, cameras = setup(config, camera_poses)
+def render_depth_imgs(config: str, camera_poses: str):
+    pipeline, cameras = _setup(config, camera_poses)
 
     output_ims = []
 
@@ -63,15 +53,27 @@ def render_depth_imgs(config: str, camera_poses: str, output_dir: str):
 
     return output_ims
 
+def render_and_save_depth_imgs(config: str, camera_poses: str, output_dir: str):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    imgs = render_depth_imgs(config, camera_poses)
+
+    print(f"saving {len(imgs)} imgs to {output_dir}")
+
+    for i, img in enumerate(imgs):
+        img_path = os.path.join(output_dir, f"img_{i}.png")
+        plt.imsave(img_path, img.numpy())
+    
 
 if __name__ == "__main__":
-    #pipeline, cameras = setup("outputs/glass_400/splatfacto/2024-02-26_222509/config.yml")
     config_path = "outputs/glass_400/splatfacto/2024-02-26_222509/config.yml"
     camera_poses = "test_poses.json"
     output_dir = "test_render_depth"
 
-    
-    depth_ims = render_depth_imgs(config_path, camera_poses, output_dir)
+    depth_ims = render_depth_imgs(config_path, camera_poses)
 
-    plt.imshow(depth_ims[0])
+    plt.imshow(depth_ims[1])
     plt.show()
+
+
